@@ -6,6 +6,7 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/sha256"
+	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -43,6 +44,7 @@ type Config struct {
 
 	AllowedOrigin string
 	LogLevel      string
+	SkipTLSVerify bool
 }
 
 func (c *Config) ToMap() map[string]interface{} {
@@ -101,6 +103,14 @@ func LoadConfig(path string) (*Config, error) {
 			if _, err := fmt.Sscanf(v, "%d", &n); err == nil {
 				out.RetryMaxInterval = time.Duration(n) * time.Millisecond
 			}
+		case "skiptlsverify", "skip_tls_verify", "skip_tls", "SkipTLSVerify":
+			lv := strings.ToLower(v)
+			if lv == "1" || lv == "true" || lv == "yes" {
+				out.SkipTLSVerify = true
+			} else {
+				out.SkipTLSVerify = false
+			}
+
 		case "requesttimeoutms":
 			var n int64
 			if _, err := fmt.Sscanf(v, "%d", &n); err == nil {
@@ -182,10 +192,24 @@ func NewGateway(cfg *Config) (*PaymentGateway, error) {
 	// set package-level logger for helper funcs
 	pkgLogger = logger
 
+	// Build transport with TLS config based on cfg.SkipTLSVerify
+	transport := &http.Transport{
+		TLSClientConfig: &tls.Config{
+			InsecureSkipVerify: cfg.SkipTLSVerify,
+		},
+	}
+
+	if cfg.SkipTLSVerify {
+		logger.Warn("SkipTLSVerify is enabled: TLS certificate verification will be disabled (insecure). Use only for debugging.")
+	}
+
 	pg := &PaymentGateway{
 		Config: cfg,
 		logger: logger,
-		client: &http.Client{Timeout: cfg.RequestTimeout},
+		client: &http.Client{
+			Timeout:   cfg.RequestTimeout,
+			Transport: transport,
+		},
 	}
 	logger.Debug("PaymentGateway initialized")
 	return pg, nil
