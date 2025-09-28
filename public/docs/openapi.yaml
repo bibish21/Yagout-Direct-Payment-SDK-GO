@@ -1,0 +1,192 @@
+openapi: 3.0.4
+info:
+  title: YagoutPay Direct Payment SDK - Backend API
+  version: 1.0.0
+  description: |
+    API for the YagoutPay Go backend & SDK. Provides endpoints to create a checkout,
+    query orders stored in-memory, and a mock gateway for local testing.
+servers:
+  - url: http://localhost:8080
+    description: Local development server (default)
+
+tags:
+  - name: Checkout
+    description: Create checkouts / payment requests
+  - name: Orders
+    description: Query order status
+  - name: Dev
+    description: Development / Test endpoints (mock gateway)
+
+paths:
+  /api/checkout:
+    post:
+      tags:
+        - Checkout
+      summary: Create a checkout and request payment via gateway
+      description: Creates an order, calls the SDK to perform payment request, and returns order metadata.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CheckoutRequest'
+            examples:
+              example-1:
+                value:
+                  mobileNumber: "0915141414"
+                  currency: "ETB"
+                  amount: "1.00"
+                  customerName: "Biniyam Yosef"
+                  wallet: "telebirr"
+                  email: "biniyam@yagoutpay.com"
+      responses:
+        '200':
+          description: Order created and payment attempted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CheckoutResponse'
+              examples:
+                success:
+                  value:
+                    orderNo: "ORDc0a1b2c3"
+                    status: "Success"
+                    statusMessage: "Successful"
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResp'
+        '500':
+          description: SDK or gateway error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResp'
+
+  /api/order/{orderNo}:
+    get:
+      tags:
+        - Orders
+      summary: Get order by order number
+      parameters:
+        - name: orderNo
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Order number previously returned by /api/checkout
+      responses:
+        '200':
+          description: The stored order (in-memory)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  order:
+                    $ref: '#/components/schemas/Order'
+        '404':
+          description: Order not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResp'
+
+  /health:
+    get:
+      tags: [Dev]
+      summary: Health check
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                example:
+                  ok: true
+
+components:
+  schemas:
+    CheckoutRequest:
+      type: object
+      required:
+        - mobileNumber
+        - currency
+        - amount
+        - customerName
+      properties:
+        mobileNumber:
+          type: string
+          example: "0915141414"
+          description: Local phone format (e.g. 0912345678)
+        currency:
+          type: string
+          example: "ETB"
+        amount:
+          type: string
+          example: "1.00"
+          description: Numeric as string (1-2 decimals)
+        customerName:
+          type: string
+          example: "Biniyam Yosef"
+        wallet:
+          type: string
+          example: "telebirr"
+        email:
+          type: string
+          format: email
+          example: "biniyam@yagoutpay.com"
+    CheckoutResponse:
+      type: object
+      properties:
+        orderNo:
+          type: string
+          example: "ORDc0a1b2c3"
+        status:
+          type: string
+          example: "Success"
+        statusMessage:
+          type: string
+          example: "Successful"
+    Order:
+      type: object
+      properties:
+        orderNo: { type: string }
+        mobileNumber: { type: string }
+        currency: { type: string }
+        amount: { type: string }
+        customerName: { type: string }
+        status: { type: string }
+        statusMessage: { type: string }
+        transactionId: { type: string }
+        responseRaw:
+          type: string
+          description: Decrypted PG payload stored as a string (may be JSON)
+        createdAt: { type: string, format: date-time }
+        wallet: { type: string }
+    PaymentResponse:
+      type: object
+      properties:
+        merchantId: { type: string }
+        status: { type: string }
+        statusMessage: { type: string }
+        response: { type: string }
+        decryptedResponse: { type: string }
+        transactionId: { type: string }
+        raw:
+          type: object
+          additionalProperties: true
+    ErrorResp:
+      type: object
+      properties:
+        error:
+          type: string
+          example: "Description of error"
+
+security: []   # public API — adjust if you require API keys/auth

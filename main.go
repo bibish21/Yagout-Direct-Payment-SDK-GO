@@ -157,7 +157,10 @@ func main() {
 		log.Fatalf("init gateway: %v", err)
 	}
 
+	// Use Gin
 	r := gin.Default()
+
+	// CORS: allow swagger UI try-it-out and frontends. Include "me_id" and "Authorization" as allowed headers.
 	allowed := conf.AllowedOrigin
 	if allowed == "" {
 		allowed = "http://localhost:5173"
@@ -165,10 +168,17 @@ func main() {
 	r.Use(cors.New(cors.Config{
 		AllowOrigins:     []string{allowed, "http://localhost:5173"},
 		AllowMethods:     []string{"GET", "POST", "OPTIONS"},
-		AllowHeaders:     []string{"Origin", "Content-Type", "Accept"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "me_id", "Authorization"},
+		ExposeHeaders:    []string{"Content-Length"},
 		AllowCredentials: true,
 		MaxAge:           12 * time.Hour,
 	}))
+
+	// Serve static swagger UI and the openapi file
+	// Put swagger dist into ./public/docs/ and put openapi.yaml at project root (./openapi.yaml)
+	// These two static mounts let http://localhost:8080/docs/ work.
+	r.Static("/docs", "./public/docs")              // serves index.html + assets
+	r.StaticFile("/openapi.yaml", "./openapi.yaml") // serve the spec
 
 	api := r.Group("/api")
 	api.POST("/checkout", func(c *gin.Context) {
@@ -269,7 +279,8 @@ func main() {
 
 	api.GET("/orders", func(c *gin.Context) { c.JSON(http.StatusOK, gin.H{"orders": listOrders()}) })
 
-	// mock gateway
+	// mock gateway (dev only)
+	// This matches openapi.yaml path /mock-gateway
 	r.POST("/mock-gateway", func(c *gin.Context) {
 		var payload map[string]interface{}
 		_ = c.BindJSON(&payload)
@@ -279,9 +290,13 @@ func main() {
 		c.JSON(http.StatusOK, resp)
 	})
 
+	// health endpoint
+	r.GET("/health", func(c *gin.Context) { c.JSON(http.StatusOK, gin.H{"ok": true}) })
+
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
 	}
+	log.Printf("starting server on :%s (docs: /docs , spec: /openapi.yaml)\n", port)
 	r.Run(":" + port)
 }
