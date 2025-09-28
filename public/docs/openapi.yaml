@@ -4,7 +4,7 @@ info:
   version: 1.0.0
   description: |
     API for the YagoutPay Go backend & SDK. Provides endpoints to create a checkout,
-    query orders stored in-memory, in-file or in database, and a mock gateway for local testing.
+    query orders stored in-memory, in-file or in database, and YagoutPay payment gateway for local testing.
 servers:
   - url: https://yagoutpay-direct-payment-go.up.railway.app/
     description: Local development server (default)
@@ -14,8 +14,8 @@ tags:
     description: Create checkouts / payment requests
   - name: Orders
     description: Query order status
-  - name: Dev
-    description: Development / Test endpoints (mock gateway)
+  - name: Server health
+    description: Development
 
 paths:
   /api/checkout:
@@ -97,7 +97,7 @@ paths:
   /health:
     get:
       tags: [Dev]
-      summary: Health check
+      summary: Server health check
       responses:
         '200':
           description: OK
