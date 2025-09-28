@@ -6,7 +6,7 @@ info:
     API for the YagoutPay Go backend & SDK. Provides endpoints to create a checkout,
     query orders stored in-memory, and a mock gateway for local testing.
 servers:
-  - url: http://localhost:8080
+  - url: https://yagoutpay-direct-payment-go.up.railway.app/
     description: Local development server (default)
 
 tags:
