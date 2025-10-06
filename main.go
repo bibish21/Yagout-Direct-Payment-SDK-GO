@@ -7,12 +7,10 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/example/yagout-payment-sdk/backend/sdk"
-	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
@@ -161,65 +159,22 @@ func main() {
 	// Use Gin
 	r := gin.Default()
 
-	// CORS: build allowed origins list from config (support comma-separated),
-	// include common dev origins and frontend origin(s)
-	allowedRaw := strings.TrimSpace(conf.AllowedOrigin)
-	var allowedList []string
-	if allowedRaw != "" {
-		for _, a := range strings.Split(allowedRaw, ",") {
-			a = strings.TrimSpace(a)
-			a = strings.TrimSuffix(a, "/") // remove trailing slash — origin must not include it
-			if a != "" {
-				allowedList = append(allowedList, a)
-			}
+	// --- CORS: Allow all origins (wildcard) ---
+	// WARNING: This sets Access-Control-Allow-Origin: * and DOES NOT allow credentials (cookies).
+	// Don't use in production unless you intend to allow every origin.
+	r.Use(func(c *gin.Context) {
+		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+		c.Writer.Header().Set("Vary", "Origin")
+		c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		c.Writer.Header().Set("Access-Control-Allow-Headers", "Origin, Content-Type, Accept, Authorization, me_id, X-Requested-With")
+		// Do NOT set Access-Control-Allow-Credentials when using wildcard origin
+		if c.Request.Method == http.MethodOptions {
+			c.AbortWithStatus(200)
+			return
 		}
-	}
-
-	// Add common local dev origin if not present
-	if !contains(allowedList, "http://localhost:5173") {
-		allowedList = append(allowedList, "http://localhost:5173")
-	}
-	// Ensure the frontend origin is allowed (add your real frontend origin here if needed)
-	if !contains(allowedList, "https://go.dorira.com") {
-		allowedList = append(allowedList, "https://go.dorira.com")
-	}
-
-	// Logging so you can verify which origins are allowed at startup
-	log.Printf("CORS allowed origins: %v\n", allowedList)
-
-	corsCfg := cors.Config{
-		AllowOrigins:     allowedList,
-		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "me_id", "Authorization", "X-Requested-With"},
-		ExposeHeaders:    []string{"Content-Length"},
-		AllowCredentials: true, // keep true only if you need cookies/auth with credentials
-		MaxAge:           12 * time.Hour,
-	}
-
-	// Optionally allow any subdomain of dorira.com as well
-	corsCfg.AllowOriginFunc = func(origin string) bool {
-		if origin == "" {
-			return false
-		}
-		// allow exact matches
-		for _, o := range corsCfg.AllowOrigins {
-			if o == origin {
-				return true
-			}
-		}
-		// allow *.dorira.com (subdomains)
-		if strings.HasSuffix(origin, ".dorira.com") {
-			return true
-		}
-		return false
-	}
-
-	r.Use(cors.New(corsCfg))
-
-	// Ensure OPTIONS preflight receives a 200 quickly
-	r.OPTIONS("/*path", func(c *gin.Context) {
-		c.Status(http.StatusOK)
+		c.Next()
 	})
+	// ------------------------------------------
 
 	// Serve static swagger UI and the openapi file
 	// Put swagger dist into ./public/docs/ and put openapi.yaml at project root (./openapi.yaml)
@@ -346,14 +301,4 @@ func main() {
 	}
 	log.Printf("starting server on :%s (docs: /docs , spec: /openapi.yaml)\n", port)
 	r.Run(":" + port)
-}
-
-// contains checks if a string is in a slice
-func contains(list []string, s string) bool {
-	for _, v := range list {
-		if v == s {
-			return true
-		}
-	}
-	return false
 }
